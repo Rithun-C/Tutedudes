@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Vendor Dashboard{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <h2 class="mb-4">📦 Orders for Your Products</h2>
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Welcome to your Vendor Dashboard!</strong> 
+                Manage your orders, update statuses, and track your business performance.
+            </div>
+        </div>
+    </div>
+    {% if orders %}
+        {% for group in orders %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <strong>Order #{{ group.order.id }}</strong> | Retailer: {{ group.retailer.username }} | Placed: {{ group.order.created_at|date:"d M Y H:i" }}
+            </div>
+            <div class="card-body">
+                <p>Status: <span class="badge bg-info">{{ group.order.get_status_display }}</span>
+{% if group.feedbacks %}
+<button class="btn btn-outline-secondary btn-sm ms-3" type="button" data-bs-toggle="collapse" data-bs-target="#feedback-{{ group.order.id }}" aria-expanded="false" aria-controls="feedback-{{ group.order.id }}">
+    View Feedback
+</button>
+{% endif %}
+</p>
+                <form method="post" action="{% url 'update_order_status' group.order.id %}">
+                    {% csrf_token %}
+                    <div class="input-group mb-3" style="max-width:300px;">
+                        <select name="status" class="form-select">
+                            {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if group.order.status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary">Update Status</button>
+                    </div>
+                </form>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Quantity</th>
+                            <th>Price at Order</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in group.items %}
+                        <tr>
+                            <td>{{ item.product.name }}</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>₹{{ item.price_at_order_time }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if group.feedbacks %}
+<div class="collapse mt-3" id="feedback-{{ group.order.id }}">
+    <h6>Feedback Received (Order #{{ group.order.id }}):</h6>
+    {% for fb in group.feedbacks %}
+        <div class="border rounded p-2 mb-2 bg-light">
+            <strong>Rating:</strong> {{ fb.rating }} / 5<br>
+            {% if fb.comment %}<em>{{ fb.comment }}</em>{% endif %}
+            <div class="text-muted small">{{ fb.created_at|date:"d M Y H:i" }}</div>
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">No orders for your products yet.</div>
+    {% endif %}
+</div>
+{% endblock %}
+

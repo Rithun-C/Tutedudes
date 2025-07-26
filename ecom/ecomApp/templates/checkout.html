@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Checkout{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <h2 class="mb-4">Checkout</h2>
+    {% if cart_items %}
+    <form method="post">
+        {% csrf_token %}
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in cart_items %}
+                <tr>
+                    <td>{{ item.product.name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>₹{{ item.product.price }}</td>
+                    <td>₹{% widthratio item.product.price 1 item.quantity %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="mb-3">
+            <strong>Total: ₹{{ total }}</strong>
+        </div>
+        <button type="submit" class="btn btn-success">Place Order</button>
+        <a href="{% url 'cart' %}" class="btn btn-secondary">Back to Cart</a>
+    </form>
+    {% else %}
+    <div class="alert alert-info">Your cart is empty.</div>
+    {% endif %}
+</div>
+{% endblock %}

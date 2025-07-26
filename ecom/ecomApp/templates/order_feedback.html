@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Order Feedback{% endblock %}
+{% block content %}
+<h2 class="mb-4">Provide Feedback for Order #{{ order.id }}</h2>
+<form method="post">
+    {% csrf_token %}
+    {% for v in vendors %}
+        {% with vendor_user=v.vendor_id|default_if_none:0 %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Vendor ID {{ v.vendor }}</h5>
+                <div class="mb-2">
+                    <label class="form-label">Rating (1-5)</label>
+                    <select class="form-select" name="rating_{{ v.vendor }}">
+                        {% for i in "12345" %}
+                        <option value="{{ i }}">{{ i }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Comments</label>
+                    <textarea class="form-control" name="comment_{{ v.vendor }}" rows="3"></textarea>
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">Submit Feedback</button>
+</form>
+{% endblock %}

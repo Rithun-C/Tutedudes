@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }} - Product Details{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="row g-0">
+                    {% if product.image %}
+                    <div class="col-md-5">
+                        <img src="{{ product.image.url }}" class="img-fluid rounded-start" alt="{{ product.name }}" style="height: 100%; object-fit: cover;">
+                    </div>
+                    {% endif %}
+                    <div class="col-md-7">
+                        <div class="card-body">
+                            <h3 class="card-title">{{ product.name }}</h3>
+{% if avg_rating %}
+<p class="mb-1">Average Rating: {{ avg_rating|floatformat:1 }} / 5</p>
+{% endif %}
+                            <p class="card-text">{{ product.description }}</p>
+                            <p class="mb-2"><strong>Price: ₹{{ product.price }}</strong></p>
+                            <p class="text-muted small mb-3">Available: {{ product.quantity }} units</p>
+                            {% if product.quantity > 0 %}
+                            <form method="post" action="{% url 'add_to_cart' product.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success me-2">Add to Cart</button>
+                            </form>
+                            {% else %}
+                            <p class="text-danger">Out of Stock</p>
+                            {% endif %}
+                            <a href="{% url 'browse_products' %}" class="btn btn-secondary mt-2">Back to Browse</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if feedbacks %}
+<hr>
+<h4 class="mt-4">Customer Feedback</h4>
+{% for fb in feedbacks %}
+<div class="border rounded p-2 mb-2">
+    <strong>{{ fb.retailer.username }}</strong> rated {{ fb.rating }} / 5<br>
+    {% if fb.comment %}<em>{{ fb.comment }}</em>{% endif %}
+    <div class="text-muted small">{{ fb.created_at|date:"d M Y H:i" }}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+</div>
+</div>
+</div>
+{% endblock %}

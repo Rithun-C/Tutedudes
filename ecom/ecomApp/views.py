@@ -1,5 +1,517 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login, logout
+from django.contrib import messages
+from .models import CustomUser, Product, ChatMessage, Category
+from .forms import ProductForm
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+# AI imports removed
+import json
+from django.core.paginator import Paginator
 
-# Create your views here.
 def home(request):
+    if request.user.is_authenticated:
+        if getattr(request.user, 'is_vendor', False):
+            return redirect('vendor_dashboard')
+        if getattr(request.user, 'is_retailer', False):
+            return redirect('retailer_dashboard')
     return render(request, 'home.html', {'title': 'Home'})
+
+def register_view(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        email = request.POST['email']
+        password = request.POST['password']
+        role = request.POST['role']  # 'vendor' or 'retailer'
+        if CustomUser.objects.filter(username=username).exists():
+            messages.error(request, 'Username already exists')
+            return render(request, 'register.html')
+        user = CustomUser.objects.create_user(username=username, email=email, password=password)
+        if role == 'vendor':
+            user.is_vendor = True
+        elif role == 'retailer':
+            user.is_retailer = True
+        user.save()
+        messages.success(request, 'Registration successful! Please log in.')
+        return redirect('login')
+    return render(request, 'register.html')
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            if user.is_vendor:
+                return redirect('/vendor/dashboard/')
+            elif user.is_retailer:
+                return redirect('/retailer/dashboard/')
+            else:
+                return redirect('home')
+        else:
+            messages.error(request, 'Invalid credentials')
+            return redirect('login')
+    return render(request, 'login.html')
+
+def is_vendor(user):
+    return user.is_authenticated and getattr(user, 'is_vendor', False)
+
+def is_retailer(user):
+    return user.is_authenticated and getattr(user, 'is_retailer', False)
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+
+def browse_products(request):
+    products_qs = Product.objects.filter(available=True, quantity__gt=0)
+    paginator = Paginator(products_qs, 9)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    return render(request, 'browse_products.html', {
+        'page_obj': page_obj,
+        'products': page_obj.object_list
+    })
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def product_detail(request, id):
+    from django.shortcuts import get_object_or_404
+    from .models import Feedback
+    from django.db.models import Avg
+    product = get_object_or_404(Product, id=id, available=True)
+    feedbacks = Feedback.objects.filter(vendor=product.vendor, order__items__product=product)
+    avg_rating = feedbacks.aggregate(avg=Avg('rating'))['avg']
+    return render(request, 'product_detail.html', {
+        'product': product,
+        'feedbacks': feedbacks,
+        'avg_rating': avg_rating
+    })
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def cart(request):
+    from .models import CartItem, Category
+    from decimal import Decimal
+    cart_items = CartItem.objects.select_related('product', 'product__category', 'cart').filter(cart__retailer=request.user, cart__status='active')
+    ai_cart_items = [item for item in cart_items if item.auto_added]
+    regular_cart_items = [item for item in cart_items if not item.auto_added]
+    # Totals
+    total = Decimal('0')
+    ai_total = Decimal('0')
+    regular_total = Decimal('0')
+    category_breakdown = {}
+    for item in cart_items:
+        subtotal = item.product.price * item.quantity
+        item.subtotal = subtotal  # Add subtotal to each item
+        total += subtotal
+        if item.auto_added:
+            ai_total += subtotal
+        else:
+            regular_total += subtotal
+        cat = item.product.category.name if item.product.category else 'Uncategorized'
+        category_breakdown.setdefault(cat, Decimal('0'))
+        category_breakdown[cat] += subtotal
+    return render(request, 'cart.html', {
+        'cart_items': cart_items,
+        'ai_cart_items': ai_cart_items,
+        'regular_cart_items': regular_cart_items,
+        'cart_total': total,
+        'ai_total': ai_total,
+        'regular_total': regular_total,
+        'category_breakdown': category_breakdown
+    })
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def add_to_cart(request, product_id):
+    from .models import Cart, CartItem, Product
+    from django.shortcuts import get_object_or_404
+    product = get_object_or_404(Product, id=product_id, available=True)
+    # Get or create active cart for this retailer
+    cart, _ = Cart.objects.get_or_create(retailer=request.user, status='active')
+    cart_item, created = CartItem.objects.get_or_create(
+        cart=cart,
+        product=product,
+        defaults={'quantity': 1}
+    )
+    if not created:
+        # Do not exceed available stock
+        if cart_item.quantity + 1 > product.quantity:
+            messages.warning(request, f"Only {product.quantity} of {product.name} available in stock.")
+        else:
+            cart_item.quantity += 1
+            cart_item.save()
+    return redirect('cart')
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def remove_from_cart(request, item_id):
+    from .models import Cart, CartItem
+    cart = Cart.objects.filter(retailer=request.user, status='active').first()
+    if not cart:
+        return redirect('cart')
+    cart_item = CartItem.objects.filter(id=item_id, cart=cart).first()
+    if cart_item and request.method == 'POST':
+        cart_item.delete()
+    return redirect('cart')
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def update_cart_quantity(request, item_id):
+    from .models import Cart, CartItem
+    cart = Cart.objects.filter(retailer=request.user, status='active').first()
+    if not cart:
+        return redirect('cart')
+    cart_item = CartItem.objects.filter(id=item_id, cart=cart).first()
+    if cart_item and request.method == 'POST':
+        try:
+            quantity = int(request.POST.get('quantity', 1))
+            max_available = cart_item.product.quantity
+            if quantity > max_available:
+                messages.warning(request, f"Only {max_available} items available for {cart_item.product.name}.")
+                quantity = max_available
+            if quantity > 0:
+                cart_item.quantity = quantity
+                cart_item.save()
+            else:
+                cart_item.delete()
+        except ValueError:
+            pass
+    return redirect('cart')
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def checkout(request):
+    from .models import Cart, CartItem, Order, OrderItem
+    from django.db import transaction
+    from decimal import Decimal
+    
+    # Get active cart for this retailer
+    cart = Cart.objects.filter(retailer=request.user, status='active').first()
+    if not cart:
+        messages.error(request, 'No active cart found.')
+        return redirect('cart')
+    
+    cart_items = CartItem.objects.filter(cart=cart)
+    if request.method == 'POST':
+        if not cart_items.exists():
+            messages.error(request, 'Your cart is empty.')
+            return redirect('cart')
+            
+        total = sum(item.product.price * item.quantity for item in cart_items)
+        
+        with transaction.atomic():
+            # Re-validate stock before committing
+            for item in cart_items:
+                if item.quantity > item.product.quantity:
+                    messages.error(request, f"Not enough stock for {item.product.name}. Available: {item.product.quantity}")
+                    return redirect('cart')
+            # Create order
+            order = Order.objects.create(
+                retailer=request.user,
+                total_price=total,
+                status='pending'
+            )
+            # Create order items and reduce stock
+            for item in cart_items:
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    vendor=item.product.vendor,
+                    quantity=item.quantity,
+                    price_at_order_time=item.product.price,
+                    added_by='AI' if item.auto_added else 'Manual'
+                )
+                # Decrease product stock
+                item.product.quantity -= item.quantity
+                item.product.save()
+            # Clear cart and items
+            cart_items.delete()
+            cart.delete()
+            
+        messages.success(request, f'Order #{order.id} placed successfully!')
+        return redirect('retailer_order_history')
+    
+    total = sum(item.product.price * item.quantity for item in cart_items)
+    return render(request, 'checkout.html', {'cart_items': cart_items, 'total': total})
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def order_summary(request):
+    from .models import Order
+    order = Order.objects.filter(retailer=request.user).order_by('-created_at').first()
+    return render(request, 'order_summary.html', {'order': order})
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def retailer_dashboard(request):
+    return render(request, 'retailer_dashboard.html')
+
+@login_required
+@user_passes_test(is_retailer, login_url='/')
+def order_feedback(request, order_id):
+    from .models import Order, Feedback, OrderItem
+    order = Order.objects.filter(id=order_id, retailer=request.user).first()
+    if not order or order.status != 'delivered':
+        messages.warning(request, 'Feedback is available only after delivery.')
+        return redirect('retailer_order_history')
+    # one feedback per vendor per order
+    vendor_items = order.items.values('vendor').distinct()
+    if request.method == 'POST':
+        for vid in [v['vendor'] for v in vendor_items]:
+            rating = int(request.POST.get(f'rating_{vid}', '5'))
+            comment = request.POST.get(f'comment_{vid}', '')
+            Feedback.objects.create(order=order, vendor_id=vid, retailer=request.user, rating=rating, comment=comment)
+        messages.success(request, 'Thank you for your feedback!')
+        return redirect('retailer_order_history')
+    return render(request, 'order_feedback.html', {'order': order, 'vendors': vendor_items})
+
+
+def retailer_order_history(request):
+    from .models import Order, OrderItem
+    from decimal import Decimal
+    
+    # Get all orders for this retailer
+    orders = Order.objects.filter(retailer=request.user).order_by('-created_at')
+    
+    # Group orders with their items
+    orders_with_items = []
+    for order in orders:
+        order_items = OrderItem.objects.select_related('product', 'product__vendor').filter(order=order)
+        
+        # Calculate order total
+        order_total = Decimal('0')
+        for item in order_items:
+            order_total += item.price_at_order_time * item.quantity
+            
+        orders_with_items.append({
+            'order': order,
+            'items': order_items,
+            'total': order_total
+        })
+    
+    return render(request, 'retailer_orders.html', {
+        'orders_with_items': orders_with_items
+    })
+
+# AI shopping assistant removed
+
+# Vendor AI command functionality removed - AI assistant is only available for retailers
+
+@login_required
+@user_passes_test(is_vendor, login_url='/')
+def vendor_dashboard(request):
+    from .models import OrderItem, Order
+    # Get all OrderItems for products belonging to this vendor
+    order_items = OrderItem.objects.select_related('order', 'product').filter(product__vendor=request.user).order_by('-order__created_at')
+    # Group by order
+    orders_dict = {}
+    for item in order_items:
+        oid = item.order.id
+        if oid not in orders_dict:
+            orders_dict[oid] = {
+                'order': item.order,
+                'retailer': item.order.retailer,
+                'items': [],
+                'feedbacks': [],
+            }
+        orders_dict[oid]['items'].append(item)
+        # collect feedback once per order (may run multiple times but idempotent)
+        from .models import Feedback
+        orders_dict[oid]['feedbacks'] = Feedback.objects.filter(order=item.order, vendor=request.user)
+    orders = list(orders_dict.values())
+    status_choices = Order.STATUS_CHOICES
+    return render(request, 'vendor_dashboard.html', {'orders': orders, 'status_choices': status_choices})
+
+@login_required
+@user_passes_test(is_vendor, login_url='/')
+def update_order_status(request, order_id):
+    from .models import Order, OrderItem
+    order = Order.objects.get(id=order_id)
+    # Check if this vendor has at least one product in this order
+    has_vendor_product = OrderItem.objects.filter(order=order, product__vendor=request.user).exists()
+    if not has_vendor_product:
+        return redirect('vendor_dashboard')
+    if request.method == 'POST':
+        status = request.POST.get('status')
+        if status in dict(Order.STATUS_CHOICES):
+            # Prevent single vendor from marking multi-vendor order as delivered
+            if status == 'delivered':
+                from django.db.models import Count
+                involved_vendors = OrderItem.objects.filter(order=order).values('vendor').distinct().count()
+                if involved_vendors > 1:
+                    messages.warning(request, "This order involves multiple vendors. Each vendor can mark their items as delivered, but the retailer will mark the order complete.")
+                else:
+                    order.status = status
+                    order.save()
+            else:
+                order.status = status
+                order.save()
+    return redirect('vendor_dashboard')
+
+@login_required
+@user_passes_test(is_vendor, login_url='/')
+def vendor_products(request):
+    from .models import Product, Category
+    from django.db.models import Avg, Min, Max
+    # Fetch all categories for dropdown
+    categories = Category.objects.all()
+    # Get filter params
+    price_min = request.GET.get('price_min')
+    price_max = request.GET.get('price_max')
+    category_id = request.GET.get('category')
+    stock = request.GET.get('stock')  # 'in' or 'out'
+    sort = request.GET.get('sort')  # 'price', 'date', 'quantity'
+    products = Product.objects.filter(vendor=request.user)
+    # Filter by price
+    if price_min:
+        products = products.filter(price__gte=price_min)
+    if price_max:
+        products = products.filter(price__lte=price_max)
+    # Filter by category
+    if category_id and category_id != 'all':
+        products = products.filter(category_id=category_id)
+    # Filter by stock
+    if stock == 'in':
+        products = products.filter(quantity__gt=0)
+    elif stock == 'out':
+        products = products.filter(quantity=0)
+    # Sorting
+    if sort == 'price':
+        products = products.order_by('price')
+    elif sort == 'date':
+        products = products.order_by('-created_at')
+    elif sort == 'quantity':
+        products = products.order_by('quantity')
+    # Analytics
+    total_products = products.count()
+    low_stock_products = products.filter(quantity__lt=10).count()
+    avg_price = products.aggregate(avg=Avg('price'))['avg'] or 0
+    best_priced = products.order_by('price').first()
+    # For price slider range
+    min_price = Product.objects.filter(vendor=request.user).aggregate(min=Min('price'))['min'] or 0
+    max_price = Product.objects.filter(vendor=request.user).aggregate(max=Max('price'))['max'] or 0
+    return render(request, 'vendor_products.html', {
+        'products': products,
+        'categories': categories,
+        'total_products': total_products,
+        'low_stock_products': low_stock_products,
+        'avg_price': avg_price,
+        'best_priced': best_priced,
+        'min_price': min_price,
+        'max_price': max_price,
+        'selected_category': category_id or 'all',
+        'selected_stock': stock or '',
+        'selected_sort': sort or '',
+        'selected_price_min': price_min or min_price,
+        'selected_price_max': price_max or max_price,
+    })
+
+@login_required
+@user_passes_test(is_vendor, login_url='/')
+def add_product(request):
+    if request.method == 'POST':
+        form = ProductForm(request.POST, request.FILES)
+        if form.is_valid():
+            product = form.save(commit=False)
+            product.vendor = request.user
+            product.save()
+            return redirect('vendor_products')
+    else:
+        form = ProductForm()
+    return render(request, 'product_form.html', {'form': form, 'title': 'Add Product'})
+
+@login_required
+@user_passes_test(is_vendor, login_url='/')
+def edit_product(request, id):
+    product = Product.objects.get(id=id, vendor=request.user)
+    if request.method == 'POST':
+        form = ProductForm(request.POST, request.FILES, instance=product)
+        if form.is_valid():
+            form.save()
+            return redirect('vendor_products')
+    else:
+        form = ProductForm(instance=product)
+    return render(request, 'product_form.html', {'form': form, 'title': 'Edit Product'})
+
+@login_required
+@user_passes_test(is_vendor, login_url='/')
+def delete_product(request, id):
+    product = Product.objects.get(id=id, vendor=request.user)
+    if request.method == 'POST':
+        product.delete()
+        return redirect('vendor_products')
+    return render(request, 'confirm_delete.html', {'product': product})
+
+def retailer_dashboard(request):
+    if not request.user.is_authenticated or not getattr(request.user, 'is_retailer', False):
+        return redirect('login')
+    return render(request, 'retailer_dashboard.html', {'user': request.user})
+
+def logout_view(request):
+    logout(request)
+    messages.success(request, 'Logged out successfully.')
+    return redirect('login')
+
+# Vendor Browsing Views for Retailers
+@login_required
+@user_passes_test(lambda u: getattr(u, 'is_retailer', False), login_url='/')
+def vendor_list(request):
+    """Display list of all vendors for retailers to browse"""
+    vendors_qs = CustomUser.objects.filter(is_vendor=True)
+    from django.core.paginator import Paginator
+    paginator = Paginator(vendors_qs, 9)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    # annotate product_count lazily
+    vendors = list(page_obj.object_list)
+    for vendor in vendors:
+        vendor.product_count = Product.objects.filter(vendor=vendor, available=True).count()
+    return render(request, 'vendor_list.html', {
+        'vendors': vendors,
+        'page_obj': page_obj,
+        'user': request.user
+    })
+
+@login_required
+@user_passes_test(lambda u: getattr(u, 'is_retailer', False), login_url='/')
+def vendor_detail(request, vendor_id):
+    """Display specific vendor's products for retailers"""
+    from django.shortcuts import get_object_or_404
+    
+    vendor = get_object_or_404(CustomUser, id=vendor_id, is_vendor=True)
+    products = Product.objects.filter(vendor=vendor, available=True).select_related('category')
+    
+    # Optional: Add search/filter functionality
+    search_query = request.GET.get('search', '')
+    category_filter = request.GET.get('category', '')
+    
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) | Q(description__icontains=search_query)
+        )
+    
+    if category_filter:
+        products = products.filter(category__name=category_filter)
+    
+    # Get categories for filter dropdown
+    categories = Category.objects.filter(
+        products__vendor=vendor, 
+        products__available=True
+    ).distinct()
+    
+    return render(request, 'vendor_detail.html', {
+        'vendor': vendor,
+        'products': products,
+        'categories': categories,
+        'search_query': search_query,
+        'category_filter': category_filter,
+        'user': request.user
+    })
+
+# All AI-related views removed
+
+# Chat history function removed

@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Browse Vendors{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-store me-2"></i>Browse Vendors</h2>
+        <a href="{% url 'retailer_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+        </a>
+    </div>
+
+    {% if vendors %}
+        <div class="row">
+            {% for vendor in vendors %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" 
+                                 style="width: 50px; height: 50px; font-size: 1.2rem;">
+                                {{ vendor.username|slice:":1"|upper }}
+                            </div>
+                            <div>
+                                <h5 class="card-title mb-1">{{ vendor.username }}</h5>
+                                <small class="text-muted">
+                                    <i class="fas fa-box me-1"></i>{{ vendor.product_count }} products
+                                </small>
+                            </div>
+                        </div>
+                        
+                        {% if vendor.email %}
+                        <p class="card-text text-muted mb-2">
+                            <i class="fas fa-envelope me-1"></i>{{ vendor.email }}
+                        </p>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                {% if vendor.product_count > 0 %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">No Products</span>
+                                {% endif %}
+                            </small>
+                            
+                            {% if vendor.product_count > 0 %}
+                            <a href="{% url 'vendor_detail' vendor.id %}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-shopping-bag me-1"></i>View Products
+                            </a>
+                            {% else %}
+                            <button class="btn btn-secondary btn-sm" disabled>
+                                No Products
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-store-slash fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No Vendors Available</h4>
+            <p class="text-muted">There are currently no vendors registered in the system.</p>
+        </div>
+    {% endif %}
+
+{% if page_obj.has_other_pages %}
+<nav aria-label="Vendors pagination" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+        {% else %}<li class="page-item disabled"><span class="page-link">Previous</span></li>{% endif %}
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% else %}
+                <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+        {% else %}<li class="page-item disabled"><span class="page-link">Next</span></li>{% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+</div>
+{% endblock %}
