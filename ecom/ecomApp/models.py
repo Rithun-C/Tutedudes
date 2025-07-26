@@ -80,6 +80,7 @@ class OrderItem(models.Model):
     vendor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, limit_choices_to={'is_vendor': True}, related_name='order_items', null=True, blank=True)
     quantity = models.PositiveIntegerField()
     price_at_order_time = models.DecimalField(max_digits=10, decimal_places=2)
+    delivered = models.BooleanField(default=False)
     added_by = models.CharField(max_length=10, choices=[('AI', 'AI'), ('Manual', 'Manual')], default='Manual')
 
     def __str__(self):
@@ -87,6 +88,7 @@ class OrderItem(models.Model):
 
 class Feedback(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='feedbacks')
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='feedbacks')
     vendor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, limit_choices_to={'is_vendor': True}, related_name='feedbacks')
     retailer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, limit_choices_to={'is_retailer': True}, related_name='given_feedbacks')
     rating = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)])

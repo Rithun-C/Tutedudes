@@ -54,6 +54,7 @@
                     <th>Description</th>
                     <th>Price</th>
                     <th>Quantity</th>
+                     <th>Avg Rating</th>
                     <th>Available</th>
                     <th>Image</th>
                     <th>Actions</th>
@@ -66,6 +67,7 @@
                     <td>{{ product.description|truncatewords:10 }}</td>
                     <td>₹{{ product.price }}</td>
                     <td>{{ product.quantity }}</td>
+                     <td>{% if product.avg_rating %}⭐ {{ product.avg_rating|floatformat:1 }} / 5{% else %}-{% endif %}</td>
                     <td>{% if product.available %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
                     <td>
                         {% if product.image %}
@@ -84,45 +86,5 @@
     {% else %}
     <div class="alert alert-info">No products found. Click "Add Product" to create your first product.</div>
     {% endif %}
-    <!-- ANALYTICS CARDS -->
-    <div class="row mt-5 mb-3">
-        <div class="col-md-3">
-            <div class="card text-bg-primary mb-3">
-                <div class="card-body">
-                    <h6 class="card-title">Total Products</h6>
-                    <h3 class="card-text">{{ total_products }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-bg-warning mb-3">
-                <div class="card-body">
-                    <h6 class="card-title">Low Stock (&lt;10)</h6>
-                    <h3 class="card-text">{{ low_stock_products }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-bg-success mb-3">
-                <div class="card-body">
-                    <h6 class="card-title">Average Price</h6>
-                    <h3 class="card-text">₹{{ avg_price|floatformat:2 }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-bg-info mb-3">
-                <div class="card-body">
-                    <h6 class="card-title">Best Priced Product</h6>
-                    {% if best_priced %}
-                        <div><strong>{{ best_priced.name }}</strong></div>
-                        <div>₹{{ best_priced.price|floatformat:2 }}</div>
-                    {% else %}
-                        <div>No products</div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}

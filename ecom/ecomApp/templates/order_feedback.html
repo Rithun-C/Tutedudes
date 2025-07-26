@@ -4,14 +4,14 @@
 <h2 class="mb-4">Provide Feedback for Order #{{ order.id }}</h2>
 <form method="post">
     {% csrf_token %}
-    {% for v in vendors %}
+    {% for item in items %}
         {% with vendor_user=v.vendor_id|default_if_none:0 %}
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">Vendor ID {{ v.vendor }}</h5>
+                <h5 class="card-title">{{ item.product.name }} <small class="text-muted">by {{ item.product.vendor.username }}</small></h5>
                 <div class="mb-2">
                     <label class="form-label">Rating (1-5)</label>
-                    <select class="form-select" name="rating_{{ v.vendor }}">
+                    <select class="form-select" name="rating_{{ item.id }}">
                         {% for i in "12345" %}
                         <option value="{{ i }}">{{ i }}</option>
                         {% endfor %}
@@ -19,7 +19,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Comments</label>
-                    <textarea class="form-control" name="comment_{{ v.vendor }}" rows="3"></textarea>
+                    <textarea class="form-control" name="comment_{{ item.id }}" rows="3"></textarea>
                 </div>
             </div>
         </div>

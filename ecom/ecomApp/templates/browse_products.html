@@ -14,6 +14,9 @@
                     <h5 class="card-title">{{ product.name }}</h5>
                     <p class="card-text">{{ product.description|truncatewords:15 }}</p>
                     <p class="mb-2"><strong>₹{{ product.price }}</strong></p>
+{% if product.avg_rating %}
+<p class="text-warning small mb-1">⭐ {{ product.avg_rating|floatformat:1 }} / 5</p>
+{% endif %}
 <p class="text-muted small">Vendor: {{ product.vendor.username }}</p>
                     <p class="text-muted small">Available: {{ product.quantity }}</p>
                     <a href="{% url 'product_detail' product.id %}" class="btn btn-outline-primary mt-auto">View Details</a>

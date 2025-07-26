@@ -66,7 +66,8 @@ def is_retailer(user):
 @user_passes_test(is_retailer, login_url='/')
 
 def browse_products(request):
-    products_qs = Product.objects.filter(available=True, quantity__gt=0)
+    from django.db.models import Avg
+    products_qs = Product.objects.filter(available=True, quantity__gt=0).annotate(avg_rating=Avg('feedbacks__rating'))
     paginator = Paginator(products_qs, 9)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -82,7 +83,7 @@ def product_detail(request, id):
     from .models import Feedback
     from django.db.models import Avg
     product = get_object_or_404(Product, id=id, available=True)
-    feedbacks = Feedback.objects.filter(vendor=product.vendor, order__items__product=product)
+    feedbacks = product.feedbacks.select_related('retailer')
     avg_rating = feedbacks.aggregate(avg=Avg('rating'))['avg']
     return render(request, 'product_detail.html', {
         'product': product,
@@ -259,23 +260,27 @@ def order_feedback(request, order_id):
         messages.warning(request, 'Feedback is available only after delivery.')
         return redirect('retailer_order_history')
     # one feedback per vendor per order
-    vendor_items = order.items.values('vendor').distinct()
+    items = OrderItem.objects.select_related('product').filter(order=order, product__available=True)
     if request.method == 'POST':
-        for vid in [v['vendor'] for v in vendor_items]:
-            rating = int(request.POST.get(f'rating_{vid}', '5'))
-            comment = request.POST.get(f'comment_{vid}', '')
-            Feedback.objects.create(order=order, vendor_id=vid, retailer=request.user, rating=rating, comment=comment)
-        messages.success(request, 'Thank you for your feedback!')
+        for item in items:
+            rating = int(request.POST.get(f'rating_{item.id}', '5'))
+            comment = request.POST.get(f'comment_{item.id}', '')
+            Feedback.objects.create(order=order, product=item.product, vendor=item.product.vendor,
+                                    retailer=request.user, rating=rating, comment=comment)
+        messages.success(request, 'Thank you for rating the products!')
         return redirect('retailer_order_history')
-    return render(request, 'order_feedback.html', {'order': order, 'vendors': vendor_items})
-
+    return render(request, 'order_feedback.html', {'order': order, 'items': items})
 
 def retailer_order_history(request):
     from .models import Order, OrderItem
     from decimal import Decimal
     
     # Get all orders for this retailer
-    orders = Order.objects.filter(retailer=request.user).order_by('-created_at')
+    orders_qs = Order.objects.filter(retailer=request.user).order_by('-created_at')
+    from django.core.paginator import Paginator
+    paginator = Paginator(orders_qs, 5)
+    page_number = request.GET.get('page')
+    orders = paginator.get_page(page_number)
     
     # Group orders with their items
     orders_with_items = []
@@ -294,7 +299,8 @@ def retailer_order_history(request):
         })
     
     return render(request, 'retailer_orders.html', {
-        'orders_with_items': orders_with_items
+        'orders_with_items': orders_with_items,
+        'page_obj': orders
     })
 
 # AI shopping assistant removed
@@ -303,11 +309,23 @@ def retailer_order_history(request):
 
 @login_required
 @user_passes_test(is_vendor, login_url='/')
-def vendor_dashboard(request):
-    from .models import OrderItem, Order
-    # Get all OrderItems for products belonging to this vendor
+def vendor_overview(request):
+
+    from django.db.models import Avg
+
+    return render(request, 'vendor_home.html', {
+        'products': products,
+        'more_products': more_products,
+        'avg_price': avg_price,
+        'best_priced': best_priced,
+    })
+
+@login_required
+@user_passes_test(is_vendor, login_url='/')
+def vendor_orders(request):
+    """List orders for vendor's products"""
+    from .models import OrderItem, Order, Feedback
     order_items = OrderItem.objects.select_related('order', 'product').filter(product__vendor=request.user).order_by('-order__created_at')
-    # Group by order
     orders_dict = {}
     for item in order_items:
         oid = item.order.id
@@ -318,38 +336,107 @@ def vendor_dashboard(request):
                 'items': [],
                 'feedbacks': [],
             }
+        fb = Feedback.objects.filter(order=item.order, product=item.product).first()
+        item.order_rating = fb.rating if fb else None
         orders_dict[oid]['items'].append(item)
-        # collect feedback once per order (may run multiple times but idempotent)
-        from .models import Feedback
         orders_dict[oid]['feedbacks'] = Feedback.objects.filter(order=item.order, vendor=request.user)
-    orders = list(orders_dict.values())
+    orders_list = list(orders_dict.values())
+    from django.core.paginator import Paginator
+    paginator = Paginator(orders_list, 5)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
     status_choices = Order.STATUS_CHOICES
-    return render(request, 'vendor_dashboard.html', {'orders': orders, 'status_choices': status_choices})
+    return render(request, 'vendor_orders.html', {
+        'page_obj': page_obj,
+        'orders': page_obj.object_list,
+        'status_choices': status_choices,
+    })
+
+
+@login_required
+@user_passes_test(is_vendor, login_url='/')
+def vendor_dashboard(request):
+    """Vendor Dashboard - Analytics overview only"""
+    from .models import Product
+    from django.db.models import Avg
+    total_products = Product.objects.filter(vendor=request.user).count()
+    low_stock_products = Product.objects.filter(vendor=request.user, quantity__lt=10).count()
+    avg_price = Product.objects.filter(vendor=request.user).aggregate(avg=Avg('price'))['avg'] or 0
+    best_priced = Product.objects.filter(vendor=request.user).order_by('price').first()
+
+    # --- Sales & Performance Metrics (last 30 days) ---
+    from datetime import timedelta
+    from django.utils import timezone
+    from django.db.models import Sum, F, DecimalField, Avg, Count
+    from .models import OrderItem, Order, Feedback
+    now = timezone.now()
+    last_30 = now - timedelta(days=30)
+    last_7 = now - timedelta(days=7)
+
+    order_items_30 = OrderItem.objects.select_related('order').filter(
+        product__vendor=request.user,
+        order__created_at__gte=last_30
+    )
+    sales_30 = order_items_30.aggregate(total=Sum(F('quantity') * F('price_at_order_time'), output_field=DecimalField()))['total'] or 0
+    units_30 = order_items_30.aggregate(total=Sum('quantity'))['total'] or 0
+
+    orders_30 = Order.objects.filter(items__product__vendor=request.user, created_at__gte=last_30).distinct()
+    order_count_30 = orders_30.count()
+    aov_30 = (sales_30 / order_count_30) if order_count_30 else 0
+
+    # Order pipeline snapshot
+    pending_orders = Order.objects.filter(items__product__vendor=request.user, status='pending').distinct().count()
+
+    # Feedback metrics
+    avg_rating_overall = Feedback.objects.filter(vendor=request.user).aggregate(avg=Avg('rating'))['avg'] or 0
+
+    # Top 5 products by units sold (last 30 days)
+    top_products = list(order_items_30.values('product__name').annotate(units=Sum('quantity')).order_by('-units')[:5])
+    return render(request, 'vendor_dashboard.html', {
+        # Core inventory stats
+        'total_products': total_products,
+        'low_stock_products': low_stock_products,
+        'avg_price': avg_price,
+        'best_priced': best_priced,
+        # Sales KPIs
+        'sales_30': sales_30,
+        'units_30': units_30,
+        'aov_30': aov_30,
+        # Operational
+        'pending_orders': pending_orders,
+        # Customer satisfaction
+        'avg_rating_overall': avg_rating_overall,
+        # Top products list
+        'top_products': top_products
+    })
 
 @login_required
 @user_passes_test(is_vendor, login_url='/')
 def update_order_status(request, order_id):
     from .models import Order, OrderItem
     order = Order.objects.get(id=order_id)
+    # If order already delivered, do not allow further modifications
+    if order.status == 'delivered':
+        messages.info(request, 'Order already delivered. Status can no longer be changed.')
+        return redirect('vendor_dashboard')
     # Check if this vendor has at least one product in this order
     has_vendor_product = OrderItem.objects.filter(order=order, product__vendor=request.user).exists()
     if not has_vendor_product:
         return redirect('vendor_dashboard')
     if request.method == 'POST':
         status = request.POST.get('status')
-        if status in dict(Order.STATUS_CHOICES):
-            # Prevent single vendor from marking multi-vendor order as delivered
-            if status == 'delivered':
-                from django.db.models import Count
-                involved_vendors = OrderItem.objects.filter(order=order).values('vendor').distinct().count()
-                if involved_vendors > 1:
-                    messages.warning(request, "This order involves multiple vendors. Each vendor can mark their items as delivered, but the retailer will mark the order complete.")
-                else:
-                    order.status = status
-                    order.save()
-            else:
-                order.status = status
+        if status == 'delivered':
+            # Mark ONLY this vendor's items as delivered
+            OrderItem.objects.filter(order=order, product__vendor=request.user).update(delivered=True)
+            # If ALL items in the order are delivered, close the order
+            if not OrderItem.objects.filter(order=order, delivered=False).exists():
+                order.status = 'delivered'
                 order.save()
+            messages.success(request, "Delivery status updated.")
+        else:
+            # allow vendor to mark his items processing/dispatched etc.
+            order.status = status
+            order.save()
     return redirect('vendor_dashboard')
 
 @login_required
@@ -365,7 +452,7 @@ def vendor_products(request):
     category_id = request.GET.get('category')
     stock = request.GET.get('stock')  # 'in' or 'out'
     sort = request.GET.get('sort')  # 'price', 'date', 'quantity'
-    products = Product.objects.filter(vendor=request.user)
+    products = Product.objects.filter(vendor=request.user).annotate(avg_rating=Avg('feedbacks__rating'))
     # Filter by price
     if price_min:
         products = products.filter(price__gte=price_min)
@@ -511,7 +598,3 @@ def vendor_detail(request, vendor_id):
         'category_filter': category_filter,
         'user': request.user
     })
-
-# All AI-related views removed
-
-# Chat history function removed

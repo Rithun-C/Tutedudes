@@ -9,7 +9,9 @@ urlpatterns = [
     path('register/', views.register_view, name='register'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('vendor/overview/', views.vendor_overview, name='vendor_overview'),
     path('vendor/dashboard/', views.vendor_dashboard, name='vendor_dashboard'),
+    path('vendor/orders/', views.vendor_orders, name='vendor_orders'),
     path('retailer/dashboard/', views.retailer_dashboard, name='retailer_dashboard'),
     # Vendor product management
     path('vendor/products/', views.vendor_products, name='vendor_products'),

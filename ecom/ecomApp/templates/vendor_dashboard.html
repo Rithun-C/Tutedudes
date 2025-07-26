@@ -2,77 +2,121 @@
 {% block title %}Vendor Dashboard{% endblock %}
 {% block content %}
 <div class="container py-5">
-    <h2 class="mb-4">📦 Orders for Your Products</h2>
+    <h2 class="mb-4">📋 Vendor Dashboard</h2>
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="alert alert-info">
                 <i class="fas fa-info-circle me-2"></i>
                 <strong>Welcome to your Vendor Dashboard!</strong> 
-                Manage your orders, update statuses, and track your business performance.
+                Track your business performance with these analytics.
             </div>
         </div>
     </div>
-    {% if orders %}
-        {% for group in orders %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <strong>Order #{{ group.order.id }}</strong> | Retailer: {{ group.retailer.username }} | Placed: {{ group.order.created_at|date:"d M Y H:i" }}
+    <!-- ANALYTICS CARDS -->
+    <div class="row mt-5 mb-3">
+        <div class="col-md-3">
+            <div class="card text-bg-primary mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Total Products</h6>
+                    <h3 class="card-text">{{ total_products }}</h3>
+                </div>
             </div>
-            <div class="card-body">
-                <p>Status: <span class="badge bg-info">{{ group.order.get_status_display }}</span>
-{% if group.feedbacks %}
-<button class="btn btn-outline-secondary btn-sm ms-3" type="button" data-bs-toggle="collapse" data-bs-target="#feedback-{{ group.order.id }}" aria-expanded="false" aria-controls="feedback-{{ group.order.id }}">
-    View Feedback
-</button>
-{% endif %}
-</p>
-                <form method="post" action="{% url 'update_order_status' group.order.id %}">
-                    {% csrf_token %}
-                    <div class="input-group mb-3" style="max-width:300px;">
-                        <select name="status" class="form-select">
-                            {% for value, label in status_choices %}
-                                <option value="{{ value }}" {% if group.order.status == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="btn btn-primary">Update Status</button>
-                    </div>
-                </form>
-                <table class="table table-bordered">
-                    <thead>
-                        <tr>
-                            <th>Product</th>
-                            <th>Quantity</th>
-                            <th>Price at Order</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in group.items %}
-                        <tr>
-                            <td>{{ item.product.name }}</td>
-                            <td>{{ item.quantity }}</td>
-                            <td>₹{{ item.price_at_order_time }}</td>
-                        </tr>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-warning mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Low Stock (&lt;10)</h6>
+                    <h3 class="card-text">{{ low_stock_products }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-success mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Average Price</h6>
+                    <h3 class="card-text">₹{{ avg_price|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-info mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Best Priced Product</h6>
+                    {% if best_priced %}
+                        <div><strong>{{ best_priced.name }}</strong></div>
+                        <div>₹{{ best_priced.price|floatformat:2 }}</div>
+                    {% else %}
+                        <div>No products</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PERFORMANCE CARDS -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <div class="card text-bg-secondary mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Sales (30&nbsp;d)</h6>
+                    <h3 class="card-text">₹{{ sales_30|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-secondary mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Units Sold (30&nbsp;d)</h6>
+                    <h3 class="card-text">{{ units_30 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-secondary mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Avg Order Value</h6>
+                    <h3 class="card-text">₹{{ aov_30|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-danger mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Pending Orders</h6>
+                    <h3 class="card-text">{{ pending_orders }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOMER SATISFACTION -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-bg-success mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Avg Rating</h6>
+                    <h3 class="card-text">{{ avg_rating_overall|floatformat:1 }} ⭐</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">Top Products (Last 30&nbsp;d)</h6>
+                    <ul class="list-group list-group-flush">
+                        {% for tp in top_products %}
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>{{ tp.product__name }}</span>
+                                <span class="badge bg-primary">{{ tp.units }}</span>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item">No sales data</li>
                         {% endfor %}
-                    </tbody>
-                </table>
-                {% if group.feedbacks %}
-<div class="collapse mt-3" id="feedback-{{ group.order.id }}">
-    <h6>Feedback Received (Order #{{ group.order.id }}):</h6>
-    {% for fb in group.feedbacks %}
-        <div class="border rounded p-2 mb-2 bg-light">
-            <strong>Rating:</strong> {{ fb.rating }} / 5<br>
-            {% if fb.comment %}<em>{{ fb.comment }}</em>{% endif %}
-            <div class="text-muted small">{{ fb.created_at|date:"d M Y H:i" }}</div>
-        </div>
-    {% endfor %}
-</div>
-{% endif %}
+                    </ul>
+                </div>
             </div>
         </div>
-        {% endfor %}
-    {% else %}
-        <div class="alert alert-info">No orders for your products yet.</div>
-    {% endif %}
+    </div>
 </div>
 {% endblock %}
 
