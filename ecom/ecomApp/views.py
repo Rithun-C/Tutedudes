@@ -24,9 +24,9 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os
 CHROMA_PATH = os.path.join(ROOT_DIR, "chroma_db")
 CHROMA_CLIENT = PersistentClient(path=CHROMA_PATH)
 try:
-    CHROMA_COLLECTION = CHROMA_CLIENT.get_collection(name="product_data")
+    CHROMA_COLLECTION = CHROMA_CLIENT.get_collection(name="ecom_full")
 except (ValueError, NotFoundError):
-    CHROMA_COLLECTION = CHROMA_CLIENT.create_collection(name="product_data")
+    CHROMA_COLLECTION = CHROMA_CLIENT.create_collection(name="ecom_full")
 
 import json
 from django.core.paginator import Paginator
@@ -644,8 +644,43 @@ def vendor_detail(request, vendor_id):
 # ---------------------------
 from django.views.decorators.http import require_http_methods
 
-@require_http_methods(["GET", "POST"])
+def generate_rag_answer(query: str) -> str:
+    """Generate RAG answer using Chroma + Gemini, returns text string"""
+    if CHROMA_COLLECTION is None:
+        return "Knowledge base not initialised. Please embed data first."
+    # embedding
+    embed_resp = genai.embed_content(model="models/embedding-001", content=query, task_type="retrieval_query")
+    query_embedding = embed_resp["embedding"]
+    results = CHROMA_COLLECTION.query(query_embeddings=[query_embedding], n_results=3)
+    documents = results["documents"][0] if results["documents"] else []
+    context = "\n".join(documents)
+    prompt = (
+        "You are an e-commerce assistant. "
+        "Using the following context, answer the user's question as helpfully as possible.\n\n" +
+        f"Context:\n{context}\n\nUser question: {query}"
+    )
+    chat_resp = GEMINI_MODEL.generate_content(prompt)
+    return chat_resp.text.strip()
+
+
 @login_required
+@require_http_methods(["GET"])
+def chat_ui(request):
+    """Render the chat interface page"""
+    return render(request, "chat.html")
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def chat_send(request):
+    """AJAX endpoint to receive user message and return AI reply"""
+    user_msg = request.POST.get("message", "").strip()
+    if not user_msg:
+        return JsonResponse({"error": "empty message"}, status=400)
+    answer = generate_rag_answer(user_msg)
+    return JsonResponse({"reply": answer})
+
+
 def ask_ai(request):
     """Retrieve relevant product context via Chroma + answer with OpenAI chat."""
     if request.method == "POST":
@@ -658,25 +693,7 @@ def ask_ai(request):
             messages.error(request, "Knowledge base not initialised. Please embed data first.")
             return redirect("ask_ai")
 
-        def get_embedding(text):
-            embed_resp = genai.embed_content(model="models/embedding-001", content=text, task_type="retrieval_query")
-            return embed_resp["embedding"]
-
-        query_embedding = get_embedding(query)
-
-        # Search
-        results = CHROMA_COLLECTION.query(query_embeddings=[query_embedding], n_results=3)
-        documents = results["documents"][0] if results["documents"] else []
-        context = "\n".join(documents)
-
-        prompt = (
-            "You are an e-commerce assistant. "
-            "Using the following context, answer the user's question as helpfully as possible.\n\n" +
-            f"Context:\n{context}\n\nUser question: {query}"
-        )
-
-        chat_resp = GEMINI_MODEL.generate_content(prompt)
-        answer = chat_resp.text.strip()
+        answer = generate_rag_answer(query)
 
         return render(request, "rag_response.html", {"query": query, "response": answer})
 

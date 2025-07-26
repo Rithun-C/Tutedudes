@@ -27,8 +27,8 @@
                             <li class="nav-item"><a class="nav-link" href="{% url 'vendor_orders' %}">Orders</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'vendor_products' %}">My Products</a></li>
                         {% elif user.is_retailer %}
-                            <li class="nav-item"><a class="nav-link" href="{% url 'retailer_dashboard' %}">Dashboard</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'vendor_list' %}">🏪 Browse Vendors</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'chat_ui' %}">AI Chat</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'vendor_list' %}">Browse Vendors</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'browse_products' %}">Browse Products</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'cart' %}">Cart</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'retailer_order_history' %}">My Orders</a></li>
