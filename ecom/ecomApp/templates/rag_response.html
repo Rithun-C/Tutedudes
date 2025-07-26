@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-3">AI Assistant Response</h2>
+  <div class="container mt-5">
+  <div class="card shadow">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">🤖 AI Assistant</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted"><strong>Your Question:</strong> {{ query }}</p>
+      <div class="border-start ps-3">
+        {{ response|linebreaks }}
+      </div>
+    </div>
+    <div class="card-footer text-end">
+      <a href="{% url 'ask_ai' %}" class="btn btn-outline-primary">Ask another question</a>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

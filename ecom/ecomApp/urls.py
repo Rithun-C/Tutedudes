@@ -29,6 +29,9 @@ urlpatterns = [
     path('retailer/order/summary/', views.order_summary, name='order_summary'),
     path('retailer/order/<int:order_id>/feedback/', views.order_feedback, name='order_feedback'),
     path('retailer/orders/', views.retailer_order_history, name='retailer_order_history'),
+    # RAG AI query
+    path('ai/ask/', views.ask_ai, name='ask_ai'),
+
     # Vendor browsing for retailers
     path('retailer/vendors/', views.vendor_list, name='vendor_list'),
     path('retailer/vendors/<int:vendor_id>/', views.vendor_detail, name='vendor_detail'),

@@ -7,7 +7,27 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-# AI imports removed
+# AI imports
+import os
+import chromadb
+import google.generativeai as genai
+from chromadb import PersistentClient
+from chromadb.errors import NotFoundError
+
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Initialise Gemini model once
+GEMINI_MODEL = genai.GenerativeModel("gemini-1.5-flash")
+
+# Initialize (persistent) Chroma client once per process
+# Compute project root (two levels up from this file)
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
+CHROMA_PATH = os.path.join(ROOT_DIR, "chroma_db")
+CHROMA_CLIENT = PersistentClient(path=CHROMA_PATH)
+try:
+    CHROMA_COLLECTION = CHROMA_CLIENT.get_collection(name="product_data")
+except (ValueError, NotFoundError):
+    CHROMA_COLLECTION = CHROMA_CLIENT.create_collection(name="product_data")
+
 import json
 from django.core.paginator import Paginator
 
@@ -618,3 +638,46 @@ def vendor_detail(request, vendor_id):
         'category_filter': category_filter,
         'user': request.user
     })
+
+# ---------------------------
+# RAG – Ask AI View
+# ---------------------------
+from django.views.decorators.http import require_http_methods
+
+@require_http_methods(["GET", "POST"])
+@login_required
+def ask_ai(request):
+    """Retrieve relevant product context via Chroma + answer with OpenAI chat."""
+    if request.method == "POST":
+        query = request.POST.get("query", "").strip()
+        if not query:
+            messages.error(request, "Please enter a question.")
+            return redirect("ask_ai")
+
+        if CHROMA_COLLECTION is None:
+            messages.error(request, "Knowledge base not initialised. Please embed data first.")
+            return redirect("ask_ai")
+
+        def get_embedding(text):
+            embed_resp = genai.embed_content(model="models/embedding-001", content=text, task_type="retrieval_query")
+            return embed_resp["embedding"]
+
+        query_embedding = get_embedding(query)
+
+        # Search
+        results = CHROMA_COLLECTION.query(query_embeddings=[query_embedding], n_results=3)
+        documents = results["documents"][0] if results["documents"] else []
+        context = "\n".join(documents)
+
+        prompt = (
+            "You are an e-commerce assistant. "
+            "Using the following context, answer the user's question as helpfully as possible.\n\n" +
+            f"Context:\n{context}\n\nUser question: {query}"
+        )
+
+        chat_resp = GEMINI_MODEL.generate_content(prompt)
+        answer = chat_resp.text.strip()
+
+        return render(request, "rag_response.html", {"query": query, "response": answer})
+
+    return render(request, "ask.html")
