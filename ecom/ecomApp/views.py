@@ -66,14 +66,30 @@ def is_retailer(user):
 @user_passes_test(is_retailer, login_url='/')
 
 def browse_products(request):
-    from django.db.models import Avg
-    products_qs = Product.objects.filter(available=True, quantity__gt=0).annotate(avg_rating=Avg('feedbacks__rating'))
+    """Retailer browse all products with optional global search."""
+    from django.db.models import Avg, Q
+
+    search_query = request.GET.get('search', '').strip()
+
+    products_qs = Product.objects.filter(available=True, quantity__gt=0)
+    if search_query:
+        products_qs = products_qs.filter(
+            Q(name__icontains=search_query) |
+            Q(description__icontains=search_query) |
+            Q(category__name__icontains=search_query) |
+            Q(vendor__username__icontains=search_query)
+        )
+
+    products_qs = products_qs.annotate(avg_rating=Avg('feedbacks__rating'))
+
     paginator = Paginator(products_qs, 9)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+
     return render(request, 'browse_products.html', {
         'page_obj': page_obj,
-        'products': page_obj.object_list
+        'products': page_obj.object_list,
+        'search_query': search_query,
     })
 
 @login_required
@@ -572,14 +588,18 @@ def vendor_detail(request, vendor_id):
     vendor = get_object_or_404(CustomUser, id=vendor_id, is_vendor=True)
     products = Product.objects.filter(vendor=vendor, available=True).select_related('category')
     
-    # Optional: Add search/filter functionality
-    search_query = request.GET.get('search', '')
-    category_filter = request.GET.get('category', '')
-    
+        # Search & filter functionality
+    from django.db.models import Q
+    search_query = request.GET.get('search', '').strip()
+    category_filter = request.GET.get('category', '').strip()
+
     if search_query:
         products = products.filter(
             Q(name__icontains=search_query) | Q(description__icontains=search_query)
         )
+        # Inform user if no matching item found for this vendor
+        if not products.exists():
+            messages.info(request, f'"{search_query}" is not available from {vendor.username}.')
     
     if category_filter:
         products = products.filter(category__name=category_filter)

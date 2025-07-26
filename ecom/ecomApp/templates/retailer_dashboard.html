@@ -3,6 +3,11 @@
 {% block content %}
 <div class="container py-4">
     <h2 class="mb-4">Welcome, {{ user.username }}!</h2>
+        <!-- Global Search -->
+        <form action="{% url 'browse_products' %}" method="get" class="d-flex mb-4">
+            <input type="text" name="search" class="form-control me-2" placeholder="Search products across store...">
+            <button class="btn btn-outline-primary" type="submit">&#x1F50D;</button>
+        </form>
     
     <div class="row">
         <!-- Quick Actions -->

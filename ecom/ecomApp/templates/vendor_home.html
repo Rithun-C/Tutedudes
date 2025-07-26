@@ -24,11 +24,7 @@
                     <h6 class="card-title fw-semibold">{{ product.name }}</h6>
                     <p class="card-text text-primary fw-bold mb-2">₹{{ product.price|floatformat:2 }}</p>
                     <div class="mt-auto">
-                        {% if product.avg_rating %}
-                        <span class="badge bg-warning text-dark">⭐ {{ product.avg_rating|floatformat:1 }} / 5</span>
-                        {% else %}
-                        <span class="badge bg-secondary">No ratings yet</span>
-                        {% endif %}
+                        <span class="badge bg-warning text-dark">⭐ {{ product.avg_rating|default:0|floatformat:1 }} / 5</span>
                     </div>
                 </div>
             </div>

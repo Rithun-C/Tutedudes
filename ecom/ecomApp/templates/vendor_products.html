@@ -67,7 +67,7 @@
                     <td>{{ product.description|truncatewords:10 }}</td>
                     <td>₹{{ product.price }}</td>
                     <td>{{ product.quantity }}</td>
-                     <td>{% if product.avg_rating %}⭐ {{ product.avg_rating|floatformat:1 }} / 5{% else %}-{% endif %}</td>
+                     <td>⭐ {{ product.avg_rating|default:0|floatformat:1 }} / 5</td>
                     <td>{% if product.available %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
                     <td>
                         {% if product.image %}
