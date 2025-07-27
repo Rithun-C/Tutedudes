@@ -1,16 +1,15 @@
-/* Custom styles for Tutedudes Ecom */
-
-/* Brand color variables */
+/* Lavender Dreams brand color variables */
 :root {
-    --color-primary: #61dafb;            /* Malibu blue */
-    --color-primary-hover: #4FC3F7;      /* Darker blue for hover */
-    --color-primary-disabled: rgba(97,218,251,0.8);
-    --color-bg: #FFFFFF;
-    --color-bg-secondary: #F8F9FA;
-    --color-text: #2C2C2C;
-    --color-text-secondary: #6C757D;
+    --color-primary: #BE9FE1;                      /* Wisteria purple */
+    --color-primary-hover: #A98BC9;                /* Darker purple for hover (generated) */
+    --color-primary-disabled: rgba(190,159,225,0.8);/* Wisteria purple with 80% opacity */
+    --color-accent-light: #E1CCEC;                 /* Light Wisteria */
+    --color-accent-medium: #C9B6E4;                /* London Hue */
+    --color-bg: #FFFFFF;                           /* White */
+    --color-bg-secondary: #F1F1F6;                 /* Lavender Gray */
+    --color-text: #2C2C2C;                         /* Dark Gray for text */
+    --color-text-secondary: #6C757D;               /* Lighter Gray for secondary text */
 }
-
 
 /* Removed layout helpers revert */
 
@@ -19,21 +18,21 @@
     object-fit: cover;
 }
 
-body { font-family: 'Poppins', sans-serif !important; }
 
+body { font-family: 'Poppins', sans-serif ; }
 .navbar-brand {
     font-weight: 600;
-    color: var(--color-primary) !important;
+    color: var(--color-primary) ;
 }
 
 .btn-primary {
-    background-color: var(--color-primary);
-    border-color: var(--color-primary);
+    background-color: var(--color-primary) ;
+    border-color: var(--color-primary) ;
 }
 
 .btn-primary:hover {
-    background-color: var(--color-primary-hover);
-    border-color: var(--color-primary-hover);
+    background-color: var(--color-primary-hover) ;
+    border-color: var(--color-primary-hover) ;
 }
 
 .alert {
@@ -79,13 +78,55 @@ a:hover {
 
 /* Disabled primary buttons */
 .btn-primary:disabled, .btn-primary.disabled {
-    background-color: var(--color-primary-disabled);
-    border-color: var(--color-primary-disabled);
+    background-color: var(--color-primary-disabled) ;
+    border-color: var(--color-primary-disabled) ;
+}
+
+/* Responsive button width */
+.btn-responsive { width: 100%; }
+@media (min-width: 768px) {
+  .btn-responsive { width: auto; }
 }
 
 /* Form focus states */
 .form-control:focus, .form-select:focus {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 0.25rem rgba(97,218,251,.25);
+    box-shadow: 0 0 0 0.25rem rgba(190,159,225,.25);
 }
 
+/* Navbar size reduction */
+.navbar { padding: 0.25rem 1rem; }
+.navbar-toggler { padding: 0.25rem; }
+.navbar-toggler-icon { width: 1.25rem; height: 1.25rem; }
+/* Faster collapse animation */
+.collapsing {
+  transition: height 0.15s ease;
+}
+
+/* Bootstrap overrides for Lavender Dreams palette */
+.bg-light,
+.navbar-light {
+    background-color: var(--color-bg-secondary) ;
+}
+
+.navbar-light .navbar-brand {
+    color: var(--color-primary);
+}
+
+.navbar-light .navbar-nav .nav-link {
+    color: var(--color-text);
+}
+
+.navbar-light .navbar-nav .nav-link:hover,
+.navbar-light .navbar-nav .nav-link.active {
+    color: var(--color-primary);
+}
+
+html, body { height: 100%; }
+body { display: flex; flex-direction: column; }
+main { flex: 1 0 auto; }
+
+footer,
+footer.bg-light {
+    background-color: var(--color-bg-secondary);
+}

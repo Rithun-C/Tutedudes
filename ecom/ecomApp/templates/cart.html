@@ -81,14 +81,7 @@
     {% endif %}
     <div class="mb-3 mt-4">
         <strong>Total: ₹{{ cart_total|floatformat:2 }}</strong><br>
-        <span class="text-success">AI Items: ₹{{ ai_total|floatformat:2 }}</span> |
         <span class="text-primary">Regular Items: ₹{{ regular_total|floatformat:2 }}</span>
-        <div class="mt-2">
-            <strong>By Category:</strong>
-            {% for cat, val in category_breakdown.items %}
-                <span class="badge bg-secondary">{{ cat }}: ₹{{ val|floatformat:2 }}</span>
-            {% endfor %}
-        </div>
     </div>
     <a href="{% url 'checkout' %}" class="btn btn-success">Checkout</a>
     <a href="{% url 'browse_products' %}" class="btn btn-secondary">Continue Shopping</a>

@@ -9,9 +9,22 @@
                     <h2 class="mb-4">{{ title }}</h2>
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
-                        {{ form.as_p }}
-                        <button type="submit" class="btn btn-primary">Save</button>
-                        <a href="/vendor/products/" class="btn btn-secondary">Cancel</a>
+                        {% for field in form %}
+                            <div class="mb-3{% if field.widget.input_type == 'checkbox' %} form-check{% endif %}">
+                                <label for="{{ field.id_for_label }}" class="{% if field.widget.input_type == 'checkbox' %}form-check-label{% else %}form-label{% endif %}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}
+                                    <div class="form-text">{{ field.help_text }}</div>
+                                {% endif %}
+                                {% for error in field.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                        <div class="d-grid gap-2 d-md-flex">
+                            <button type="submit" class="btn btn-primary btn-responsive">Save</button>
+                            <a href="/vendor/products/" class="btn btn-secondary btn-responsive">Cancel</a>
+                        </div>
                     </form>
                 </div>
             </div>

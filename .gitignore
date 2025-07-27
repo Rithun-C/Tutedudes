@@ -1,3 +1,5 @@
 venv/
 .windsurf/
 .env
+__pycache__/
+*.pyc

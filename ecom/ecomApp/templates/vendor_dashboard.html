@@ -13,7 +13,7 @@
         </div>
     </div>
     <!-- ANALYTICS CARDS -->
-    <div class="row mt-5 mb-3">
+    <div class="row row-cols-2 row-cols-lg-4 g-3 mt-5 mb-3">
         <div class="col-md-3">
             <div class="card text-bg-primary mb-3">
                 <div class="card-body text-center">
@@ -38,16 +38,11 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-bg-info mb-3">
+        <div class="col">
+            <div class="card text-bg-success mb-3 h-100">
                 <div class="card-body text-center">
-                    <h6 class="card-title">Best Priced Product</h6>
-                    {% if best_priced %}
-                        <div><strong>{{ best_priced.name }}</strong></div>
-                        <div>₹{{ best_priced.price|floatformat:2 }}</div>
-                    {% else %}
-                        <div>No products</div>
-                    {% endif %}
+                    <h6 class="card-title">Avg Rating</h6>
+                    <h3 class="card-text">{{ avg_rating_overall|floatformat:1 }} ⭐</h3>
                 </div>
             </div>
         </div>
@@ -89,7 +84,7 @@
         </div>
     </div>
 
-    <!-- CUSTOMER SATISFACTION -->
+    <!-- Top Products -->
     <div class="row mb-4">
         <div class="col-md-4">
             <div class="card text-bg-success mb-3">
