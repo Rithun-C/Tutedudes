@@ -14,7 +14,7 @@ SECRET_KEY = 'django-insecure-_-7lsewpnp0rtsvuji!cur2485**m8p(geb!wgfscqm=%e40p-
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
+import os
 from dotenv import load_dotenv
 load_dotenv()
 # Application definition

@@ -1,0 +1,4 @@
+Django
+chromadb
+google-generativeai
+python-dotenv
