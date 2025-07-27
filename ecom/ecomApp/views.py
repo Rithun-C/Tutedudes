@@ -24,9 +24,9 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os
 CHROMA_PATH = os.path.join(ROOT_DIR, "chroma_db")
 CHROMA_CLIENT = PersistentClient(path=CHROMA_PATH)
 try:
-    CHROMA_COLLECTION = CHROMA_CLIENT.get_collection(name="ecom_full")
+    CHROMA_COLLECTION = CHROMA_CLIENT.get_collection(name="product_profiles")
 except (ValueError, NotFoundError):
-    CHROMA_COLLECTION = CHROMA_CLIENT.create_collection(name="ecom_full")
+    CHROMA_COLLECTION = CHROMA_CLIENT.create_collection(name="product_profiles")
 
 import json
 from django.core.paginator import Paginator
