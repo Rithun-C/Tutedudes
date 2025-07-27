@@ -13,7 +13,7 @@ SECRET_KEY = 'django-insecure-_-7lsewpnp0rtsvuji!cur2485**m8p(geb!wgfscqm=%e40p-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*']  # Update this with your actual domain or IP address in production
+ALLOWED_HOSTS = ['tutedudes.onrender.com']  # Update this with your actual domain or IP address in production
 import os
 from dotenv import load_dotenv
 load_dotenv()
